@@ -40,7 +40,7 @@ $EXPORT_TAGS{flags} = [
 }
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 our $DEBUG = 0;
 
 sub AUTOLOAD {
@@ -62,6 +62,7 @@ XSLoader::load('LMDB_File', $VERSION);
 
 package LMDB::Env;
 use Scalar::Util ();
+use Fcntl;
 
 our %Envs;
 sub new {
@@ -104,6 +105,19 @@ sub BeginTxn {
     my $txl = $Envs{$$self}{Txns};
     return $txl->[0]->SubTxn($tflags) if @$txl;
     return LMDB::Txn->new($self, $tflags);
+}
+
+# Local implementation to avoid use of O_DIRECT
+my $CRMASK = Fcntl::O_WRONLY()|Fcntl::O_CREAT()|Fcntl::O_EXCL();
+sub copy {
+    my ($self, $dir) = @_;
+    sysopen(my $fd, sprintf("%s/data.mdb", $dir), $CRMASK, 0666)
+	or goto Error;
+    my $res = $self->copyfd($fd);
+    close($fd) and return $res;
+    Error:
+    Carp::croak("$!") if($LMDB_File::die_on_err);
+    return $!;
 }
 
 package LMDB::Txn;
@@ -162,6 +176,7 @@ sub _prune {
 	last if $$rel == $$self;
     }
     warn "LMDB::Txn: $$self finalized\n" if $DEBUG > 1;
+    $$self = 0;
 }
 
 sub abort {
@@ -174,8 +189,8 @@ sub abort {
 
 sub commit {
     my $self = shift;
-    croak("Terminated transaction") unless $Txns{$$self};
-    croak("Not an active transaction") unless $Txns{$$self}{Active};
+    Carp::croak("Terminated transaction") unless $Txns{$$self};
+    Carp::croak("Not an active transaction") unless $Txns{$$self}{Active};
     $self->_commit;
     warn "LMDB::Txn $$self commited\n" if $DEBUG;
     $self->_prune;
@@ -363,7 +378,7 @@ sub FETCH {
     return $data;
 }
 
-*STORE = \&LMDB::put;
+*STORE = \&put;
 
 sub UNTIE {
     my $self = shift;
@@ -412,7 +427,7 @@ sub NEXTKEY {
     if($res == MDB_NOTFOUND()) {
 	return;
     }
-    return $key;
+    return wantarray ? ($key, $data) : $key;
 }
 
 # Autoload methods go after =cut, and are processed by the autosplit program.
