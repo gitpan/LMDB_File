@@ -1,8 +1,8 @@
-%define	LMDBVER	0.9.7
+%define	LMDBVER	0.9.8
 
 Name:		liblmdb
 Version:	%{LMDBVER}
-Release:	2.%{_disttag}
+Release:	0.%{_disttag}
 Summary:	An ultra-fast, ultra-compact key-value data store
 Group:		System Environment/Libraries
 License:	OpenLDAP
@@ -11,12 +11,12 @@ Source0:	liblmdb-%{LMDBVER}.tar.gz
 BuildRoot:	%(mktemp -ud %{_tmppath}/%{name}-%{version}-%{release}-XXXXXX)
 
 %description
-The OpenLDAP Lightning Memory-Mapped Database (MDB) MDB is an ultra-fast,
-ultra-compact key-value data store developed by Symas for the OpenLDAP Project.
-It uses memory-mapped files, so it has the read performance of a pure in-memory
-database while still offering the persistence of standard disk-based databases,
-and is only limited to the size of the virtual address space, (it is not 
-limited to the size of physical RAM). 
+The OpenLDAP's Lightning Memory-Mapped Database (LMDB)
+LMDB is an ultra-fast, ultra-compact key-value data store developed by Symas for
+the OpenLDAP Project. It uses memory-mapped files, so it has the read performance
+of a pure in-memory database while still offering the persistence of standard
+disk-based databases, and is only limited to the size of the virtual address space,
+(it is not limited to the size of physical RAM). 
 
 %package devel
 Summary:	Development files for %{name}
@@ -83,6 +83,9 @@ rm -rf %{buildroot}
 %{_libdir}/liblmdb.so
 
 %changelog
+* Thu Aug 29 2013 Salvador Ortiz <sog@msg.com.mx> - 0.9.8-0
+- Updated to git "3d59ca3"
+
 * Sat Aug 10 2013 Salvador Ortiz <sog@msg.com.mx> - 0.9.7-2
 - Remove local patches, now in upstream
 - use git version "9c49ef1"

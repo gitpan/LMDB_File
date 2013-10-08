@@ -66,6 +66,10 @@
  *	  BSD systems or when otherwise configured with MDB_USE_POSIX_SEM.
  *	  Multiple users can cause startup to fail later, as noted above.
  *
+ *	- There is normally no pure read-only mode, since readers need write
+ *	  access to locks and lock file. Exceptions: On read-only filesystems
+ *	  or with the #MDB_NOLOCK flag described under #mdb_env_open().
+ *
  *	- A thread can only use one transaction at a time, plus any child
  *	  transactions.  Each transaction belongs to one thread.  See below.
  *	  The #MDB_NOTLS flag changes this for read-only transactions.
@@ -170,7 +174,7 @@ typedef int mdb_filehandle_t;
 /** Library minor version */
 #define MDB_VERSION_MINOR	9
 /** Library patch version */
-#define MDB_VERSION_PATCH	7
+#define MDB_VERSION_PATCH	8
 
 /** Combine args a,b,c into a single integer for easy version comparisons */
 #define MDB_VERINT(a,b,c)	(((a) << 24) | ((b) << 16) | (c))
@@ -180,7 +184,7 @@ typedef int mdb_filehandle_t;
 	MDB_VERINT(MDB_VERSION_MAJOR,MDB_VERSION_MINOR,MDB_VERSION_PATCH)
 
 /** The release date of this library version */
-#define MDB_VERSION_DATE	"January 10, 2013"
+#define MDB_VERSION_DATE	"September 9, 2013"
 
 /** A stringifier for the version info */
 #define MDB_VERSTR(a,b,c,d)	"MDB " #a "." #b "." #c ": (" d ")"
@@ -216,13 +220,13 @@ typedef struct MDB_cursor MDB_cursor;
 /** @brief Generic structure used for passing keys and data in and out
  * of the database.
  *
- * Key sizes must be between 1 and the liblmdb build-time constant
- * #MDB_MAXKEYSIZE inclusive. This currently defaults to 511. The
- * same applies to data sizes in databases with the #MDB_DUPSORT flag.
- * Other data items can in theory be from 0 to 0xffffffff bytes long.
- *
  * Values returned from the database are valid only until a subsequent
- * update operation, or the end of the transaction.
+ * update operation, or the end of the transaction. Do not modify or
+ * free them, they commonly point into the database itself.
+ *
+ * Key sizes must be between 1 and #mdb_env_get_maxkeysize() inclusive.
+ * The same applies to data sizes in databases with the #MDB_DUPSORT flag.
+ * Other data items can in theory be from 0 to 0xffffffff bytes long.
  */
 typedef struct MDB_val {
 	size_t		 mv_size;	/**< size of the data item */
@@ -265,10 +269,12 @@ typedef void (MDB_rel_func)(MDB_val *item, void *oldptr, void *newptr, void *rel
 #define MDB_NOMETASYNC		0x40000
 	/** use writable mmap */
 #define MDB_WRITEMAP		0x80000
-	/** use asynchronous msync when MDB_WRITEMAP is used */
+	/** use asynchronous msync when #MDB_WRITEMAP is used */
 #define MDB_MAPASYNC		0x100000
 	/** tie reader locktable slots to #MDB_txn objects instead of to threads */
 #define MDB_NOTLS		0x200000
+	/** don't do any locking, caller must manage their own locks */
+#define MDB_NOLOCK		0x400000
 /** @} */
 
 /**	@defgroup	mdb_dbi_open	Database Flags
@@ -486,6 +492,8 @@ int  mdb_env_create(MDB_env **env);
 	 *		and uses fewer mallocs, but loses protection from application bugs
 	 *		like wild pointer writes and other bad updates into the database.
 	 *		Incompatible with nested transactions.
+	 *		Processes with and without MDB_WRITEMAP on the same environment do
+	 *		not cooperate well.
 	 *	<li>#MDB_NOMETASYNC
 	 *		Flush system buffers to disk only once per transaction, omit the
 	 *		metadata flush. Defer that until the system flushes files to disk,
@@ -523,6 +531,13 @@ int  mdb_env_create(MDB_env **env);
 	 *		user threads over individual OS threads need this option. Such an
 	 *		application must also serialize the write transactions in an OS
 	 *		thread, since MDB's write locking is unaware of the user threads.
+	 *	<li>#MDB_NOLOCK
+	 *		Don't do any locking. If concurrent access is anticipated, the
+	 *		caller must manage all concurrency itself. For proper operation
+	 *		the caller must enforce single-writer semantics, and must ensure
+	 *		that no readers are using old transactions while a writer is
+	 *		active. The simplest approach is to use an exclusive lock so that
+	 *		no readers may be active at all when a writer begins.
 	 * </ul>
 	 * @param[in] mode The UNIX permissions to set on created files. This parameter
 	 * is ignored on Windows.
@@ -662,8 +677,15 @@ int  mdb_env_get_path(MDB_env *env, const char **path);
 	 * 10485760 bytes. The size of the memory map is also the maximum size
 	 * of the database. The value should be chosen as large as possible,
 	 * to accommodate future growth of the database.
-	 * This function may only be called after #mdb_env_create() and before #mdb_env_open().
-	 * The size may be changed by closing and reopening the environment.
+	 * This function should be called after #mdb_env_create() and before #mdb_env_open().
+	 * It may be called at later times if no transactions are active in
+	 * this process. Note that the library does not check for this condition,
+	 * the caller must ensure it explicitly.
+	 *
+	 * If the mapsize is changed by another process, #mdb_txn_begin() will
+	 * return #MDB_MAP_RESIZED. This function may be called with a size
+	 * of zero to adopt the new size.
+	 *
 	 * Any attempt to set a size smaller than the space already consumed
 	 * by the environment will be silently changed to the current size of the used space.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
@@ -671,7 +693,8 @@ int  mdb_env_get_path(MDB_env *env, const char **path);
 	 * @return A non-zero error value on failure and 0 on success. Some possible
 	 * errors are:
 	 * <ul>
-	 *	<li>EINVAL - an invalid parameter was specified, or the environment is already open.
+	 *	<li>EINVAL - an invalid parameter was specified, or the environment has
+	 *   	an active write transaction.
 	 * </ul>
 	 */
 int  mdb_env_set_mapsize(MDB_env *env, size_t size);
@@ -725,8 +748,10 @@ int  mdb_env_set_maxdbs(MDB_env *env, MDB_dbi dbs);
 
 	/** @brief Get the maximum size of a key for the environment.
 	 *
+	 * This is the compile-time constant #MDB_MAXKEYSIZE, default 511.
+	 * See @ref MDB_val.
 	 * @param[in] env An environment handle returned by #mdb_env_create()
-	 * @return The maximum size of a key. (#MDB_MAXKEYSIZE)
+	 * @return The maximum size of a key
 	 */
 int  mdb_env_get_maxkeysize(MDB_env *env);
 
@@ -757,7 +782,8 @@ int  mdb_env_get_maxkeysize(MDB_env *env);
 	 *	<li>#MDB_PANIC - a fatal error occurred earlier and the environment
 	 *		must be shut down.
 	 *	<li>#MDB_MAP_RESIZED - another process wrote data beyond this MDB_env's
-	 *		mapsize and the environment must be shut down.
+	 *		mapsize and this environment's map must be resized as well.
+	 *		See #mdb_env_set_mapsize().
 	 *	<li>#MDB_READERS_FULL - a read-only transaction was requested and
 	 *		the reader lock table is full. See #mdb_env_set_maxreaders().
 	 *	<li>ENOMEM - out of memory.
@@ -920,12 +946,12 @@ int  mdb_stat(MDB_txn *txn, MDB_dbi dbi, MDB_stat *stat);
 
 	/** @brief Retrieve the DB flags for a database handle.
 	 *
-	 * @param[in] env An environment handle returned by #mdb_env_create()
+	 * @param[in] txn A transaction handle returned by #mdb_txn_begin()
 	 * @param[in] dbi A database handle returned by #mdb_dbi_open()
 	 * @param[out] flags Address where the flags will be returned.
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
-int mdb_dbi_flags(MDB_env *env, MDB_dbi dbi, unsigned int *flags);
+int mdb_dbi_flags(MDB_txn *txn, MDB_dbi dbi, unsigned int *flags);
 
 	/** @brief Close a database handle.
 	 *
