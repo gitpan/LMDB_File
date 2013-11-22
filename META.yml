@@ -20,5 +20,5 @@ no_index:
     - t
     - inc
 requires:
-  perl: 5.010001
-version: 0.04
+  perl: 5.010000
+version: 0.05
