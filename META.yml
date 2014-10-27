@@ -22,4 +22,4 @@ requires:
   perl: 5.010000
 resources:
   repository: git://github.com/salortiz/LMDB_File.git
-version: 0.07_1
+version: 0.07_2
