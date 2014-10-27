@@ -22,13 +22,6 @@
    "prereqs" : {
       "build" : {
          "requires" : {
-            "ExtUtils::MakeMaker" : "0",
-            "Test::Exception" : "0",
-            "Test::More" : "0"
-         }
-      },
-      "configure" : {
-         "requires" : {
             "ExtUtils::MakeMaker" : "0"
          }
       },
@@ -36,8 +29,22 @@
          "requires" : {
             "perl" : "5.010000"
          }
+      },
+      "test" : {
+         "requires" : {
+            "Test::Exception" : "0",
+            "Test::More" : "0",
+            "Test::ZeroCopy" : "0"
+         }
       }
    },
-   "release_status" : "stable",
-   "version" : "0.06"
+   "release_status" : "testing",
+   "resources" : {
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/salortiz/LMDB_File.git",
+         "web" : "https://github.com/salortiz/LDMM_File"
+      }
+   },
+   "version" : "0.07_1"
 }

@@ -6,8 +6,7 @@ build_requires:
   ExtUtils::MakeMaker: 0
   Test::Exception: 0
   Test::More: 0
-configure_requires:
-  ExtUtils::MakeMaker: 0
+  Test::ZeroCopy: 0
 dynamic_config: 1
 generated_by: 'ExtUtils::MakeMaker version 6.72, CPAN::Meta::Converter version 2.132140'
 license: artistic_2
@@ -21,4 +20,6 @@ no_index:
     - inc
 requires:
   perl: 5.010000
-version: 0.06
+resources:
+  repository: git://github.com/salortiz/LMDB_File.git
+version: 0.07_1

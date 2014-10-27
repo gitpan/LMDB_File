@@ -10,13 +10,14 @@ typemap
 t/00-basic.t
 t/01-environment.t
 t/02-named.t
+t/03-fastmode.t
+t/04-bigone.t
 fallback/const-c.inc
 fallback/const-xs.inc
 lib/LMDB_File.pm
 liblmdb/CHANGES
 liblmdb/COPYRIGHT
 liblmdb/Doxyfile
-liblmdb/liblmdb.spec
 liblmdb/LICENSE
 liblmdb/lmdb.h
 liblmdb/Makefile
@@ -37,6 +38,5 @@ liblmdb/mtest4.c
 liblmdb/mtest5.c
 liblmdb/mtest6.c
 liblmdb/mtest.c
-
 META.yml                                 Module YAML meta-data (added by MakeMaker)
 META.json                                Module JSON meta-data (added by MakeMaker)
