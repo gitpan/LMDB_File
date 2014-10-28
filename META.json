@@ -43,8 +43,8 @@
       "repository" : {
          "type" : "git",
          "url" : "git://github.com/salortiz/LMDB_File.git",
-         "web" : "https://github.com/salortiz/LDMM_File"
+         "web" : "https://github.com/salortiz/LMDB_File"
       }
    },
-   "version" : "0.07_2"
+   "version" : "0.07_3"
 }
